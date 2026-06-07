@@ -6,6 +6,8 @@
 #include "dht22.h"
 #include "mq_sensors.h"
 #include "relay.h"
+#include "aqi.h"
+#include "flash.h"
 
 /* ============================================================
  * MSP430G2553 - Hava Kalitesi Olcum ve Fan Kontrol Projesi
@@ -19,35 +21,53 @@
  *    - Role (fan)      -> P2.1
  *    - HC-05 BT (UART) -> P1.1=RX, P1.2=TX, 9600 baud
  *
- *  Esikler config.h icinde.
- *  Esiklerden biri asilirsa role aktif olur.
+ *  RST butonu:
+ *    Her basis BT VERI GONDERIMINI ac/kapat olarak toggle eder.
+ *    Durum flash'a yazilir; guc kesilse bile korunur.
+ *    TX kapali iken: sensorler okunmaya devam, fan kontrolu calisir,
+ *                    sadece BT'ye satir gitmez.
+ *
+ *  Fan karari (her dongude):
+ *    1) AQI histerezisi
+ *         AQI > AQI_FAN_ON_THRESHOLD  -> on
+ *         AQI < AQI_FAN_OFF_THRESHOLD -> off
+ *         arada                       -> mevcut durumu koru
+ *    2) Sicaklik override (TEMP_FAN_ON_DC) -> AQI'den bagimsiz on
  * ============================================================ */
 
 static void delay_ms(uint16_t ms)
 {
-    /* MCLK = 1 MHz (bt_init -> uart_init_9600_1mhz icinde ayarlandi) */
+    /* MCLK = 1 MHz (uart_init_9600_1mhz icinde ayarlandi) */
     while (ms--) __delay_cycles(1000);
 }
 
 int main(void)
 {
     dht22_data_t dht;
-    uint16_t co_ppm, gas_ppm;
-    uint8_t  fan;
+    uint16_t co_ppm, gas_ppm, aqi;
+    uint8_t  fan_on    = 0;
+    uint8_t  tx_enable = 0;
 
     WDTCTL = WDTPW | WDTHOLD;
 
-    /* bt_init() ICINDEKI uart_init_9600_1mhz() DCO'yu 1 MHz'e ceker.
-     * Bu yuzden EN BASTA cagrilmalidir; diger init'ler bu clock'i
-     * varsayar (delay_ms, DHT22 timing, ADC sampling).               */
+    /* bt_init() icinde DCO 1 MHz'e cekiliyor; en once cagirilmali.
+     * TX kapali olsa bile UART'i kurmak zararsiz; sadece veri gitmez. */
     bt_init();
     dht22_init();
     mq_init();
     relay_init();
 
-    bt_send_hello();
+    /* Bu boot bir TOGGLE'dir.
+     * Cip ilk programlandiktan sonraki ilk acilis: TX = ON.
+     * Sonraki her RST basisi: 0->1 / 1->0.                          */
+    tx_enable = flash_toggle_tx_flag();
 
-    /* MQ sensorleri icin kisa isinma  */
+    if (tx_enable) {
+        bt_send_hello();
+        bt_send_tx_status(1);
+    }
+
+    /* MQ sensorler icin kisa isinma */
     delay_ms(WARMUP_PERIOD_MS);
 
     while (1) {
@@ -56,22 +76,30 @@ int main(void)
         gas_ppm = mq135_read_gas_ppm();
         dht22_read(&dht);
 
-        /* --- Esik kontrolu / fan karari --- */
-        fan = 0;
-        if (co_ppm  > CO_THRESHOLD_PPM)                          fan = 1;
-        if (gas_ppm > GAS_THRESHOLD_PPM)                         fan = 1;
-        if (dht.valid && dht.temperature_dc > TEMP_THRESHOLD_DC) fan = 1;
+        aqi = aqi_calc(co_ppm, gas_ppm);
 
-        if (fan) relay_on();
-        else     relay_off();
+        /* --- Fan karari: AQI histerezisi --- */
+        if      (aqi > AQI_FAN_ON_THRESHOLD)  fan_on = 1;
+        else if (aqi < AQI_FAN_OFF_THRESHOLD) fan_on = 0;
+        /* arada: fan_on degismez */
 
-        /* --- BT paketi --- */
-        bt_send_packet(co_ppm,
-                       gas_ppm,
-                       dht.temperature_dc,
-                       dht.humidity_dp,
-                       dht.valid,
-                       relay_state());
+        /* Sicaklik override (sadece "on" yonunde, off karari AQI'nin) */
+        if (dht.valid && dht.temperature_dc > TEMP_FAN_ON_DC)
+            fan_on = 1;
+
+        if (fan_on) relay_on();
+        else        relay_off();
+
+        /* --- BT (sadece TX acikken) --- */
+        if (tx_enable) {
+            bt_send_packet(aqi,
+                           co_ppm,
+                           gas_ppm,
+                           dht.temperature_dc,
+                           dht.humidity_dp,
+                           dht.valid,
+                           relay_state());
+        }
 
         delay_ms(READING_PERIOD_MS);
     }

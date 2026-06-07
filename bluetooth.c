@@ -1,9 +1,6 @@
 #include "bluetooth.h"
 #include "uart.h"
 
-/* HC-05 = seri kanal. Tek isi USCI_A0'i 9600 8N1 @ 1 MHz olarak ac.
- * Init sirasi uart.c icinde dondurulmus durumda; buradan bozulmasi
- * mumkun degil.                                                       */
 void bt_init(void)
 {
     uart_init_9600_1mhz();
@@ -14,7 +11,13 @@ void bt_send_hello(void)
     uart_puts("\r\n[MSP430] Hava Kalitesi Olcum baslatildi\r\n");
 }
 
-/* Yardimcilar: 1 ondalik hassasiyetli sayilari yaz. */
+void bt_send_tx_status(uint8_t on)
+{
+    if (on) uart_puts("[INFO] TX ON\r\n");
+    /* TX off iken zaten BT'ye hicbir sey gonderilmez */
+}
+
+/* 1 ondalik hassasiyetli sayilar */
 
 static void send_one_decimal_u(uint16_t value_x10)
 {
@@ -33,14 +36,18 @@ static void send_one_decimal_i(int16_t value_x10)
     uart_putc((char)('0' + frac));
 }
 
-void bt_send_packet(uint16_t co_ppm,
+void bt_send_packet(uint16_t aqi,
+                    uint16_t co_ppm,
                     uint16_t gas_ppm,
                     int16_t  temp_dc,
                     uint16_t hum_dp,
                     uint8_t  sensors_valid,
                     uint8_t  fan_on)
 {
-    uart_puts("CO:");
+    uart_puts("AQI:");
+    uart_putu(aqi);
+
+    uart_puts(",CO:");
     uart_putu(co_ppm);
 
     uart_puts(",GAS:");
