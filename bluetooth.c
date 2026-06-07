@@ -1,42 +1,20 @@
 #include "bluetooth.h"
 #include "uart.h"
 
+/* HC-05 = seri kanal. Tek isi USCI_A0'i 9600 8N1 @ 1 MHz olarak ac.
+ * Init sirasi uart.c icinde dondurulmus durumda; buradan bozulmasi
+ * mumkun degil.                                                       */
 void bt_init(void)
 {
     uart_init_9600_1mhz();
 }
 
-static void send_hex_byte(uint8_t b)
-{
-    const char *hex = "0123456789ABCDEF";
-    uart_putc(hex[(b >> 4) & 0x0F]);
-    uart_putc(hex[b & 0x0F]);
-}
-
-extern volatile uint8_t snapshot_cal_bc1;
-extern volatile uint8_t snapshot_cal_dco;
-
 void bt_send_hello(void)
 {
-    uart_puts("\r\n[MSP430] Hava Kalitesi Olcum baslatildi ");
-    if (uart_calibration_ok()) uart_puts("[CAL=OK]\r\n");
-    else                       uart_puts("[CAL=LOST,fallback]\r\n");
-
-    /* Tani: CAL bayatlarini hex olarak da yaz */
-    uart_puts("[CAL_BC1=0x");
-    send_hex_byte(snapshot_cal_bc1);
-    uart_puts(" CAL_DCO=0x");
-    send_hex_byte(snapshot_cal_dco);
-    uart_puts("]\r\n");
+    uart_puts("\r\n[MSP430] Hava Kalitesi Olcum baslatildi\r\n");
 }
 
-void bt_send_tx_status(uint8_t on)
-{
-    if (on) uart_puts("[INFO] TX ON\r\n");
-    /* TX off iken zaten BT'ye hicbir sey gonderilmez */
-}
-
-/* 1 ondalik hassasiyetli sayilar */
+/* Yardimcilar: 1 ondalik hassasiyetli sayilari yaz. */
 
 static void send_one_decimal_u(uint16_t value_x10)
 {
@@ -55,18 +33,14 @@ static void send_one_decimal_i(int16_t value_x10)
     uart_putc((char)('0' + frac));
 }
 
-void bt_send_packet(uint16_t aqi,
-                    uint16_t co_ppm,
+void bt_send_packet(uint16_t co_ppm,
                     uint16_t gas_ppm,
                     int16_t  temp_dc,
                     uint16_t hum_dp,
                     uint8_t  sensors_valid,
                     uint8_t  fan_on)
 {
-    uart_puts("AQI:");
-    uart_putu(aqi);
-
-    uart_puts(",CO:");
+    uart_puts("CO:");
     uart_putu(co_ppm);
 
     uart_puts(",GAS:");

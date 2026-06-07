@@ -20,31 +20,10 @@
  * Bu kodun bu hali ile cikti temiz aliniyor. Yeni bir feature eklemek
  * istiyorsan altta yeni fonksiyon ac, uart_init_9600_1mhz() govdesine
  * dokunma.
- *
- * ---------------------------------------------------------------------
- * !!! KALIBRASYON KAYBI KORUMASI !!!
- *
- * MSP430G2553 Info Segment A (0x10C0-0x10FF) icindeki CALBC1_1MHZ ve
- * CALDCO_1MHZ fabrika kalibrasyon sabitleri silinmis olabilir. Bu
- * durumda dogrudan atama BCSCTL1 = 0xFF; DCOCTL = 0xFF; yapilir, DCO
- * ~18 MHz'e firlar, baud da ~18x hizli olur ve BT'ye copluk gider
- * (klasik "2-3 karakter sirayla tekrar").
- *
- * Asagidaki init once kalibrasyonun gecerli olup olmadigini kontrol
- * eder; 0xFF iken manuel RSEL/DCO ayari ile yaklasik 1 MHz'e ceker.
- * Bu fallback hassas degildir (~%5 sapma), 9600 baud sinirda calisir.
- * Gercek cozum: kalibrasyon sabitlerini geri yazmak veya cipi
- * degistirmek.
  * ===================================================================== */
 
 #define UART_RX_PIN   BIT1   /* P1.1 = UCA0RXD */
 #define UART_TX_PIN   BIT2   /* P1.2 = UCA0TXD */
-
-static uint8_t calibration_available(void)
-{
-    /* Segment A silindiyse her iki bayt da 0xFF olur. */
-    return (CALBC1_1MHZ != 0xFF) && (CALDCO_1MHZ != 0xFF);
-}
 
 void uart_init_9600_1mhz(void)
 {
@@ -52,19 +31,9 @@ void uart_init_9600_1mhz(void)
     P1SEL  |= UART_RX_PIN | UART_TX_PIN;
     P1SEL2 |= UART_RX_PIN | UART_TX_PIN;
 
-    /* 2) Clock */
-    if (calibration_available()) {
-        /* Normal yol - fabrika ayari */
-        BCSCTL1 = CALBC1_1MHZ;
-        DCOCTL  = CALDCO_1MHZ;
-    } else {
-        /* Kalibrasyon kaybi fallback'i:
-         *   BCSCTL1 RSEL = 0b0111 (7) -> orta-alt frekans araligi
-         *   DCOCTL DCO = 3, MOD = 0   -> bu aralikta yaklasik 1 MHz
-         * Sapma ~+/- 5%, 9600 baud sinirda. Calismayabilir. */
-        BCSCTL1 = (BCSCTL1 & 0xF0) | 0x07;   /* RSEL[3:0] = 7      */
-        DCOCTL  = (3 << 5);                   /* DCO=3, MOD=0       */
-    }
+    /* 2) Clock - 1 MHz kalibre DCO (SMCLK boylece 1 MHz olur) */
+    BCSCTL1 = CALBC1_1MHZ;
+    DCOCTL  = CALDCO_1MHZ;
 
     /* 3) UART konfigurasyonu - UCSWRST altinda */
     UCA0CTL1 |= UCSWRST;           /* SOFT reset (OR ! atama degil) */
@@ -73,11 +42,6 @@ void uart_init_9600_1mhz(void)
     UCA0BR1   = 0;
     UCA0MCTL  = UCBRS_1;           /* kesir ~0.16 -> UCBRS = 1     */
     UCA0CTL1 &= ~UCSWRST;          /* soft reset cik -> UART aktif */
-}
-
-uint8_t uart_calibration_ok(void)
-{
-    return calibration_available();
 }
 
 void uart_putc(char c)

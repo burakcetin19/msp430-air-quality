@@ -1,154 +1,105 @@
 # MSP430G2553 Hava Kalitesi Olcum Projesi
 
 MSP430G2553 tabanli, MQ-7 (CO) + MQ-135 (gaz/CO2) + DHT22 (sicaklik/nem)
-sensorleri ile hava kalitesini olcen, **AQI** hesaplayip esik histerezisi
-ile fani role uzerinden kontrol eden, verileri HC-05 Bluetooth modulu
-uzerinden yayinlayan proje.
+sensorleri ile hava kalitesini olcen, esik asildiginda role uzerinden fani
+calistiran ve HC-05 Bluetooth modulu uzerinden verileri yayinlayan proje.
 
 ## Pin Yerlesimi
 
-| Modul        | MSP430 Pini | Aciklama                                  |
-|--------------|-------------|-------------------------------------------|
-| DHT22 DATA   | P2.0        | Tek-tel data hatti (4.7k pull-up gerekli) |
-| Role IN      | P2.1        | Fan kontrolu (active-high)                |
-| MQ-7  AOUT   | P1.4 / A4   | ADC10 analog girisi                       |
-| MQ-135 AOUT  | P1.3 / A3   | ADC10 analog girisi                       |
-| HC-05 TXD    | P1.1 (RX)   | UART - MSP'nin RXD'si                     |
-| HC-05 RXD    | P1.2 (TX)   | UART - MSP'nin TXD'si                     |
-| Reset butonu | RST pini    | Her basis BT veri gonderimini toggle eder |
+| Modul        | MSP430 Pini | Aciklama                         |
+|--------------|-------------|----------------------------------|
+| DHT22 DATA   | P2.0        | Tek-tel data hatti (4.7k pull-up)|
+| Role IN      | P2.1        | Fan kontrolu (active-high)       |
+| MQ-7  AOUT   | P1.4 / A4   | ADC10 analog girisi              |
+| MQ-135 AOUT  | P1.3 / A3   | ADC10 analog girisi              |
+| HC-05 TXD    | P1.1 (RX)   | UART (MSP RX)                    |
+| HC-05 RXD    | P1.2 (TX)   | UART (MSP TX) - 3.3V seviye      |
+| RST          | RST pini    | Sifirlama butonu                 |
+
+> HC-05'in RXD'si 3.3V toleransli degildir. MSP TX 3.3V cikis verir,
+> bu yon sorunsuzdur. Ancak HC-05 -> MSP yonunde modul 3.3V CIKIS verdigi
+> icin direkt baglanabilir.
 
 ## Dosya Yapisi
 
 ```
-main.c          Ana dongu: olcum, AQI, fan histerezisi, BT
+main.c          Ana dongu: olcum, esik, role, BT cagrisi
 uart.[ch]       USCI_A0 UART surucusu (9600 8N1 @ 1 MHz)
-                !!! Init sirasi (pin -> clock -> UART) DONDURULMUS.
-bluetooth.[ch]  HC-05 paket katmani (hello / status / packet)
-dht22.[ch]      DHT22 tek-tel surucusu
-mq_sensors.[ch] ADC10 ile MQ-7 / MQ-135 ham + ppm okumalari
-aqi.[ch]        AQI hesabi (max-of-normalized)
-flash.[ch]      Info Segment D'ye TX on/off bayragi (kalici)
+                !!! Init sirasi (pin -> clock -> UART) DONDURULMUS,
+                    bu dosyaya dokunma. !!!
+bluetooth.[ch]  HC-05 paket katmani: bt_init / hello / send_packet
+dht22.[ch]      DHT22 tek-tel surucusu (1 MHz MCLK)
+mq_sensors.[ch] ADC10 ile MQ-7 / MQ-135 okumalari
 relay.[ch]      Role kontrolu (P2.1)
 config.h        Esik degerleri ve periyotlar
 ```
 
 ### UART / BT katmanlari neden ayri?
 
-`uart.c` icindeki init sirasi titiz bicimde test edildi:
+`uart.c` icindeki init sirasi titiz biçimde test edildi
+(pin fonksiyonu -> DCO kalibrasyonu -> `UCSWRST` altinda `|=` ile
+yapilandirma). Bu sira bozulursa BT'ye copluk (orn. `@^@^...`) gider.
+Paket bicimi degisecekse `bluetooth.c` icinde oynayin, `uart.c`
+govdesi degismesin.
 
-```
-1) P1SEL | P1SEL2  (pin fonksiyonlari)
-2) BCSCTL1 = CALBC1_1MHZ; DCOCTL = CALDCO_1MHZ;
-3) UCA0CTL1 |= UCSWRST;   (OR, atama degil!)
-   ... yapilandirma ...
-   UCA0CTL1 &= ~UCSWRST;
-```
+## Esik Degerleri
 
-Bu sira bozulursa BT'ye copluk gider (orn. `@^@^...`). Paket bicimi
-degisecekse `bluetooth.c` icinde oynayin, `uart.c` govdesi degismesin.
+`config.h` dosyasindan degistirilebilir:
 
-## AQI ve Fan Mantigi
+| Esik                | Varsayilan  |
+|---------------------|-------------|
+| CO_THRESHOLD_PPM    | 50 ppm      |
+| GAS_THRESHOLD_PPM   | 1000 ppm    |
+| TEMP_THRESHOLD_DC   | 30.0 C      |
+| READING_PERIOD_MS   | 2000 ms     |
+| WARMUP_PERIOD_MS    | 3000 ms     |
 
-### AQI hesabi (`aqi.c`)
-
-Her sensor 0..500 araligina normalize edilir; en kotusu AQI olur:
-
-```
-co_aqi  = co_ppm  * 500 / 200    (kirpilir 0..500)
-gas_aqi = gas_ppm * 500 / 2000   (kirpilir 0..500)
-AQI     = max(co_aqi, gas_aqi)
-```
-
-Yani bir sensor "iyi" diger "kotu" olsa bile AQI kotuyu yansitir.
-
-### Fan histerezisi (`config.h`)
-
-| Durum            | Davranis                             |
-|------------------|--------------------------------------|
-| AQI > 150 (ON)   | Fan acilir                           |
-| AQI < 100 (OFF)  | Fan kapanir                          |
-| 100 .. 150 arasi | Mevcut durum korunur (titremeyi onler)|
-
-Ekstra: `T > 30.0 C` ise fan AQI'den bagimsiz acilir (override).
-Sogudugunda yine AQI karari verir.
-
-### Esikleri degistirme
-
-`config.h` icinde:
-
-| Sabit                    | Varsayilan |
-|--------------------------|------------|
-| AQI_FAN_ON_THRESHOLD     | 150        |
-| AQI_FAN_OFF_THRESHOLD    | 100        |
-| TEMP_FAN_ON_DC           | 30.0 C     |
-| READING_PERIOD_MS        | 2000 ms    |
-| WARMUP_PERIOD_MS         | 3000 ms    |
-
-## RST Butonu - BT Toggle
-
-MSP430'nin RST pini fiziksel butonla yere cekiliyor. Her basis:
-
-1. Cipi resetler.
-2. Boot anlaminda `main()` calisir.
-3. `flash_toggle_tx_flag()` Info Segment D'deki bayragi cevirir
-   ve flash'a yazar.
-4. Yeni durum `tx_enable` degiskenine alinir; donguye girilir.
-
-Sonuc:
-
-- **TX ON**:  her 2 sn'de BT'ye paket gider, baslangicta `[INFO] TX ON`.
-- **TX OFF**: BT'ye HICBIR sey gitmez (`bt_send_*` cagrilari atlanir),
-  ama sensor okuma + fan kontrolu calismaya devam eder.
-
-Durum **kalicidir** — guc kesilse de korunur. Cip ilk programlandiktan
-sonraki ilk acilis varsayilan olarak **TX ON**'dur.
+Esiklerden HERHANGI BIRI asilirsa fan (role) AC.
 
 ## Bluetooth Veri Bicimi
 
+Her 2 saniyede bir su satir gonderilir:
+
 ```
-AQI:124,CO:42,GAS:780,T:24.5,H:51.2,F:0
+CO:42,GAS:780,T:24.5,H:51.2,F:0
 ```
 
-| Alan | Aciklama                                         |
-|------|--------------------------------------------------|
-| AQI  | 0..500, max(CO_norm, GAS_norm)                   |
-| CO   | MQ-7 ppm (lineer yaklasim)                       |
-| GAS  | MQ-135 ppm (lineer yaklasim)                     |
-| T    | DHT22 sicaklik, 1 ondalik. Okuma hatasi: `ERR`   |
-| H    | DHT22 nem, 1 ondalik. Okuma hatasi: `ERR`        |
-| F    | Fan durumu (0 / 1)                               |
+- `CO`   : MQ-7 ppm (lineer yaklasim)
+- `GAS`  : MQ-135 ppm (lineer yaklasim)
+- `T`    : DHT22 sicaklik, 1 ondalik
+- `H`    : DHT22 nem, 1 ondalik
+- `F`    : Fan durumu (0 = kapali, 1 = acik)
+
+DHT22 okumasi basarisiz olursa `T:ERR,H:ERR` doner; fan karari son
+basarili olcume gore alinir.
 
 ## Derleme
 
-Code Composer Studio'da yeni bir **MSP430G2553** projesi olusturup
-tum `.c` ve `.h` dosyalarini proje koklerine ekleyin. Ek bir
-kutuphaneye gerek yoktur.
+Code Composer Studio veya Energia / mspgcc ile:
 
-**CCS Flash ayari:** "Erase Main memory only" tutun (Project Properties
--> Debug -> MSP430 Properties -> Erase Options). Boylece info
-segment'lerdeki TX bayragi yeniden programlama sirasinda silinmez.
-Tam silmek isterseniz "Erase Main and Information memory" secebilirsiniz.
+CCS'de yeni bir MSP430G2553 projesi olusturup tum `.c` ve `.h` dosyalarini
+proje koklerine ekleyin. Ek bir kutuphaneye gerek yoktur.
 
-## Kalibrasyon
+## Kalibrasyon Notu
 
-MQ sensorler RL ve Ro'ya bagli log10 egri ile gercek ppm verir.
-Su anki kod **lineer yaklasim** kullaniyor:
+MQ-7 ve MQ-135 cikislari, RL yuk direnci ve sensor Ro degerine bagli
+LOGARITMIK bir egri ile gercek ppm'e cevrilir. Bu projede esik kararinin
+verilebilmesi icin **lineer yaklasim** kullanilmistir:
 
 - MQ-7   : 0..1023 ADC -> 0..1000 ppm CO
 - MQ-135 : 0..1023 ADC -> 0..2000 ppm gaz
 
-Hassas olcum gerekiyorsa `mq_sensors.c` icindeki donusumler log10
-formulu ile degistirilir; AQI normalizasyon ust sinirlari da
-`aqi.h` icinden yeniden ayarlanir.
+Daha hassas olcum istenirse `mq_sensors.c` icindeki donusum
+fonksiyonlari log10 tabanli formul ile degistirilmelidir.
 
 ## Donanim Notlari
 
-1. **DHT22**: data hattina 4.7k - 10k pull-up.
-2. **MQ sensorler**: ilk acilista 24-48 saat preheat onerilir.
-3. **HC-05**: 9600 8N1 varsayildi. Farkliysa `uart.c` icinde
-   `UCA0BR0` ve `UCA0MCTL` guncellenmeli.
-4. **Role karti** active-low ise `relay.h` icinde
+1. **DHT22**: data hattina 4.7k - 10k pull-up direnci konulmali.
+2. **MQ sensorler**: ilk acilista 24-48 saat preheat onerilir. Her
+   acilista da en az 3 sn (`WARMUP_PERIOD_MS`) isinma vardir.
+3. **HC-05**: varsayilan baud 9600. AT moduyla degistirilmissse
+   `bluetooth.c` icindeki `UCA0BR0` degerini guncelleyin.
+4. **Role karti**: active-low ise `relay.h` icinde
    `RELAY_ACTIVE_LOW` 1 yapilmali.
-5. **Clock**: `bt_init()` DCO'yu 1 MHz'e ceker; tum zamanlamalar
-   (DHT22, delay_ms, ADC, flash timing) buna gore yazildi.
-   `bt_init()` HER ZAMAN ILK cagrilmalidir.
+5. **Clock**: bt_init() DCO'yu 1 MHz'e cektigi icin tum zamanlamalar
+   (DHT22, delay_ms, ADC) 1 MHz varsayar. `bt_init()` ilk cagrilmalidir.

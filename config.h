@@ -7,35 +7,19 @@
  * Esik degerleri ve global ayarlar.
  * ============================================================ */
 
-/* --- Fan kontrol: AQI histerezisi ---
- *
- *  AQI > AQI_FAN_ON_THRESHOLD  -> fan AC
- *  AQI < AQI_FAN_OFF_THRESHOLD -> fan KAPAT
- *  ARADA                        -> mevcut durumu KORU
- *
- *  Bu sayede AQI tam esikte titrerken role saniyede bir
- *  acilip kapanmaz.
- */
-#define AQI_FAN_ON_THRESHOLD     150U   /* "Unhealthy for sensitive" usti */
-#define AQI_FAN_OFF_THRESHOLD    100U   /* "Moderate" alti                */
+/* CO esigi (ppm) - MQ-7  */
+#define CO_THRESHOLD_PPM        50
 
-/* --- Sicaklik override (gerekirse) ---
- *
- *  Sicaklik bu esigi gecerse, AQI ne olursa olsun fan acilir.
- *  Soguma ise AQI histerezisine birakilir.
- */
-#define TEMP_FAN_ON_DC           300    /* 30.0 C */
+/* Gaz / CO2 esigi (ppm) - MQ-135 */
+#define GAS_THRESHOLD_PPM       1000
 
-/* --- Periyotlar (ms) --- */
-#define READING_PERIOD_MS        2000U
-#define WARMUP_PERIOD_MS         3000U
+/* Sicaklik esigi (1/10 derece). 300 = 30.0 C */
+#define TEMP_THRESHOLD_DC       300
 
-/* --- TX toggle test modu ---
- *
- *  1 (default) : RST basisi flash'taki bayragi cevirir, TX on/off.
- *  0           : Flash operasyonu hic yapilmaz, TX hep ACIK.
- *                BT garbage tanisinda flash op'u izole etmek icin.
- */
-#define ENABLE_TX_TOGGLE         1
+/* Olcum periyodu (ms cinsinden, ana dongude ~delay) */
+#define READING_PERIOD_MS       2000
+
+/* Sensor isinma suresi (ms) - MQ tipi sensorler icin */
+#define WARMUP_PERIOD_MS        3000
 
 #endif /* CONFIG_H */
