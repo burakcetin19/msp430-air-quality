@@ -33,14 +33,18 @@ static void send_one_decimal_i(int16_t value_x10)
     uart_putc((char)('0' + frac));
 }
 
-void bt_send_packet(uint16_t co_ppm,
+void bt_send_packet(uint16_t aqi,
+                    uint16_t co_ppm,
                     uint16_t gas_ppm,
                     int16_t  temp_dc,
                     uint16_t hum_dp,
                     uint8_t  sensors_valid,
                     uint8_t  fan_on)
 {
-    uart_puts("CO:");
+    uart_puts("AQI:");
+    uart_putu(aqi);
+
+    uart_puts(",CO:");
     uart_putu(co_ppm);
 
     uart_puts(",GAS:");

@@ -15,7 +15,7 @@
  *    HC-05 GND -> GND ortak
  *
  * Paket bicimi (her 2 sn'de bir):
- *    CO:<ppm>,GAS:<ppm>,T:<xx.x>,H:<xx.x>,F:<0|1>\r\n
+ *    AQI:<n>,CO:<ppm>,GAS:<ppm>,T:<xx.x>,H:<xx.x>,F:<0|1>\r\n
  */
 
 void bt_init(void);
@@ -25,8 +25,9 @@ void bt_init(void);
 void bt_send_hello(void);
 
 /* Tam paket. sensors_valid = 0 ise T/H yerine "ERR" yazilir,
- * CO/GAS hala basilir (ADC her zaman calisir).                    */
-void bt_send_packet(uint16_t co_ppm,
+ * AQI/CO/GAS hala basilir (ADC her zaman calisir).                */
+void bt_send_packet(uint16_t aqi,
+                    uint16_t co_ppm,
                     uint16_t gas_ppm,
                     int16_t  temp_dc,      /* 1/10 derece */
                     uint16_t hum_dp,       /* 1/10 yuzde  */

@@ -6,6 +6,7 @@
 #include "dht22.h"
 #include "mq_sensors.h"
 #include "relay.h"
+#include "aqi.h"
 
 /* ============================================================
  * MSP430G2553 - Hava Kalitesi Olcum ve Fan Kontrol Projesi
@@ -32,8 +33,8 @@ static void delay_ms(uint16_t ms)
 int main(void)
 {
     dht22_data_t dht;
-    uint16_t co_ppm, gas_ppm;
-    uint8_t  fan;
+    uint16_t co_ppm, gas_ppm, aqi;
+    uint8_t  fan = 0;     /* histerezis icin baslangic durumunu sakla */
 
     WDTCTL = WDTPW | WDTHOLD;
 
@@ -56,17 +57,22 @@ int main(void)
         gas_ppm = mq135_read_gas_ppm();
         dht22_read(&dht);
 
-        /* --- Esik kontrolu / fan karari --- */
-        fan = 0;
-        if (co_ppm  > CO_THRESHOLD_PPM)                          fan = 1;
-        if (gas_ppm > GAS_THRESHOLD_PPM)                         fan = 1;
-        if (dht.valid && dht.temperature_dc > TEMP_THRESHOLD_DC) fan = 1;
+        aqi = aqi_calc(co_ppm, gas_ppm);
+
+        /* --- Fan karari: AQI histerezisi + sicaklik override --- */
+        if      (aqi > AQI_FAN_ON_THRESHOLD)  fan = 1;
+        else if (aqi < AQI_FAN_OFF_THRESHOLD) fan = 0;
+        /* esikler arasinda fan degeri korunur */
+
+        if (dht.valid && dht.temperature_dc > TEMP_THRESHOLD_DC)
+            fan = 1;
 
         if (fan) relay_on();
         else     relay_off();
 
         /* --- BT paketi --- */
-        bt_send_packet(co_ppm,
+        bt_send_packet(aqi,
+                       co_ppm,
                        gas_ppm,
                        dht.temperature_dc,
                        dht.humidity_dp,
