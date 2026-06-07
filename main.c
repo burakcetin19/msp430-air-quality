@@ -7,6 +7,8 @@
 #include "mq_sensors.h"
 #include "relay.h"
 #include "aqi.h"
+#include "i2c_b0.h"
+#include "oled.h"
 
 /* ============================================================
  * MSP430G2553 - Hava Kalitesi Olcum ve Fan Kontrol Projesi
@@ -45,6 +47,8 @@ int main(void)
     dht22_init();
     mq_init();
     relay_init();
+    i2c_b0_init();   /* OLED haberlesmesi icin USCI_B0 (P1.6/P1.7) */
+    oled_init();     /* SSD1306 acilis sekansi                      */
 
     bt_send_hello();
 
@@ -78,6 +82,31 @@ int main(void)
                        dht.humidity_dp,
                        dht.valid,
                        relay_state());
+
+        /* --- OLED ekrani --- */
+        oled_clear();
+
+        oled_set_cursor(0, 0);
+        oled_print_str("AQI:");
+        oled_print_num(aqi);
+        oled_print_str("  F:");
+        oled_print_num(relay_state());
+
+        oled_set_cursor(0, 1);
+        oled_print_str("CO:");
+        oled_print_num(co_ppm);
+        oled_print_str(" GAS:");
+        oled_print_num(gas_ppm);
+
+        oled_set_cursor(0, 2);
+        if (dht.valid) {
+            oled_print_str("T:");
+            oled_print_dec(dht.temperature_dc);
+            oled_print_str(" H:");
+            oled_print_dec(dht.humidity_dp);
+        } else {
+            oled_print_str("T:ERR H:ERR");
+        }
 
         delay_ms(READING_PERIOD_MS);
     }
