@@ -1,0 +1,33 @@
+# Code Composer Studio
+.metadata/
+Debug/
+Release/
+.settings/
+.cproject
+.project
+*.opt
+*.opt.*
+*.user
+targetConfigs/
+
+# Object / build artefacts
+*.o
+*.obj
+*.out
+*.elf
+*.hex
+*.bin
+*.map
+*.lst
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
