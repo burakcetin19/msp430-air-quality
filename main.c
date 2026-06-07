@@ -10,6 +10,21 @@
 #include "flash.h"
 
 /* ============================================================
+ * TANI - WATCH ile okunabilir RAM snapshot'lar.
+ *
+ * MSP430G2553'te Info Segment A'daki CAL bayatlari okuyabilmek
+ * icin debugger'in Memory/WATCH'ina guvenmek yetmiyor (CCS Theia
+ * surumunde dereference bug'i var). Bu globalleri WATCH'a ekle:
+ *
+ *   snapshot_cal_bc1   -> normalde 0x86, 0x8E, 0x96 gibi degerler.
+ *   snapshot_cal_dco   -> normalde 0xB5, 0xBD gibi degerler.
+ *
+ * Her ikisi de 0xFF ise -> Segment A silinmis, CAL kayip.
+ * ============================================================ */
+volatile uint8_t snapshot_cal_bc1 = 0;
+volatile uint8_t snapshot_cal_dco = 0;
+
+/* ============================================================
  * MSP430G2553 - Hava Kalitesi Olcum ve Fan Kontrol Projesi
  *
  *  Sensorler:
@@ -49,6 +64,10 @@ int main(void)
     uint8_t  tx_enable = 0;
 
     WDTCTL = WDTPW | WDTHOLD;
+
+    /* CAL bayatlarinin RAM kopyasi - tani amacli */
+    snapshot_cal_bc1 = CALBC1_1MHZ;
+    snapshot_cal_dco = CALDCO_1MHZ;
 
     /* bt_init() icinde DCO 1 MHz'e cekiliyor; en once cagirilmali.
      * TX kapali olsa bile UART'i kurmak zararsiz; sadece veri gitmez. */

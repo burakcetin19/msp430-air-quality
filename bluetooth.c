@@ -6,11 +6,28 @@ void bt_init(void)
     uart_init_9600_1mhz();
 }
 
+static void send_hex_byte(uint8_t b)
+{
+    const char *hex = "0123456789ABCDEF";
+    uart_putc(hex[(b >> 4) & 0x0F]);
+    uart_putc(hex[b & 0x0F]);
+}
+
+extern volatile uint8_t snapshot_cal_bc1;
+extern volatile uint8_t snapshot_cal_dco;
+
 void bt_send_hello(void)
 {
     uart_puts("\r\n[MSP430] Hava Kalitesi Olcum baslatildi ");
     if (uart_calibration_ok()) uart_puts("[CAL=OK]\r\n");
     else                       uart_puts("[CAL=LOST,fallback]\r\n");
+
+    /* Tani: CAL bayatlarini hex olarak da yaz */
+    uart_puts("[CAL_BC1=0x");
+    send_hex_byte(snapshot_cal_bc1);
+    uart_puts(" CAL_DCO=0x");
+    send_hex_byte(snapshot_cal_dco);
+    uart_puts("]\r\n");
 }
 
 void bt_send_tx_status(uint8_t on)
