@@ -9,7 +9,7 @@ calistiran ve HC-05 Bluetooth modulu uzerinden verileri yayinlayan proje.
 | Modul        | MSP430 Pini | Aciklama                         |
 |--------------|-------------|----------------------------------|
 | DHT22 DATA   | P2.0        | Tek-tel data hatti (4.7k pull-up)|
-| Role IN      | P2.1        | Fan kontrolu (active-high)       |
+| Role IN      | P2.3        | Fan kontrolu (active-high)       |
 | MQ-7  AOUT   | P1.4 / A4   | ADC10 analog girisi              |
 | MQ-135 AOUT  | P1.3 / A3   | ADC10 analog girisi              |
 | HC-05 TXD    | P1.1 (RX)   | UART (MSP RX)                    |
@@ -30,7 +30,7 @@ uart.[ch]       USCI_A0 UART surucusu (9600 8N1 @ 1 MHz)
 bluetooth.[ch]  HC-05 paket katmani: bt_init / hello / send_packet
 dht22.[ch]      DHT22 tek-tel surucusu (1 MHz MCLK)
 mq_sensors.[ch] ADC10 ile MQ-7 / MQ-135 okumalari
-relay.[ch]      Role kontrolu (P2.1)
+relay.[ch]      Role kontrolu (P2.3)
 config.h        Esik degerleri ve periyotlar
 ```
 

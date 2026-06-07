@@ -19,7 +19,7 @@
  *    - DHT22  (T/RH)   -> P2.0
  *
  *  Cikis / haberlesme:
- *    - Role (fan)      -> P2.1
+ *    - Role (fan)      -> P2.3
  *    - HC-05 BT (UART) -> P1.1=RX, P1.2=TX, 9600 baud
  *
  *  Esikler config.h icinde.
