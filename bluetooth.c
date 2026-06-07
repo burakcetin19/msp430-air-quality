@@ -1,62 +1,61 @@
 #include "bluetooth.h"
+#include "uart.h"
 
-/* HC-05 UART init.
- * Test kodundaki sira korunmustur:
- *   1) Pin fonksiyonlari (P1SEL / P1SEL2)
- *   2) DCO -> 1 MHz kalibre
- *   3) UART konfigurasyonu (UCSWRST altinda)
- */
+/* HC-05 = seri kanal. Tek isi USCI_A0'i 9600 8N1 @ 1 MHz olarak ac.
+ * Init sirasi uart.c icinde dondurulmus durumda; buradan bozulmasi
+ * mumkun degil.                                                       */
 void bt_init(void)
 {
-    /* 1) Pin fonksiyonlari */
-    P1SEL  |= BT_RX | BT_TX;
-    P1SEL2 |= BT_RX | BT_TX;
-
-    /* 2) Clock - 1 MHz kalibre DCO */
-    BCSCTL1 = CALBC1_1MHZ;
-    DCOCTL  = CALDCO_1MHZ;
-
-    /* 3) UART - 9600 baud @ 1 MHz */
-    UCA0CTL1 |= UCSWRST;          /* reset durumunda yapilandir */
-    UCA0CTL1 |= UCSSEL_2;         /* SMCLK kaynagi */
-    UCA0BR0   = 104;              /* 1.000.000 / 9600 = 104.16 */
-    UCA0BR1   = 0;
-    UCA0MCTL  = UCBRS_1;          /* kesir ~0.16 -> UCBRS=1 */
-    UCA0CTL1 &= ~UCSWRST;         /* UART'i aktif et */
+    uart_init_9600_1mhz();
 }
 
-void bt_send_char(char c)
+void bt_send_hello(void)
 {
-    while (!(IFG2 & UCA0TXIFG));
-    UCA0TXBUF = c;
+    uart_puts("\r\n[MSP430] Hava Kalitesi Olcum baslatildi\r\n");
 }
 
-void bt_send_string(const char *str)
+/* Yardimcilar: 1 ondalik hassasiyetli sayilari yaz. */
+
+static void send_one_decimal_u(uint16_t value_x10)
 {
-    while (*str) bt_send_char(*str++);
+    uart_putu(value_x10 / 10);
+    uart_putc('.');
+    uart_putc((char)('0' + (value_x10 % 10)));
 }
 
-void bt_send_number(uint16_t num)
+static void send_one_decimal_i(int16_t value_x10)
 {
-    char buf[6];
-    int8_t i = 0;
-
-    if (num == 0) {
-        bt_send_char('0');
-        return;
-    }
-    while (num > 0) {
-        buf[i++] = (num % 10) + '0';
-        num /= 10;
-    }
-    while (--i >= 0) bt_send_char(buf[i]);
+    int16_t whole = value_x10 / 10;
+    int16_t frac  = value_x10 % 10;
+    if (frac < 0) frac = -frac;
+    uart_puti(whole);
+    uart_putc('.');
+    uart_putc((char)('0' + frac));
 }
 
-void bt_send_signed(int16_t num)
+void bt_send_packet(uint16_t co_ppm,
+                    uint16_t gas_ppm,
+                    int16_t  temp_dc,
+                    uint16_t hum_dp,
+                    uint8_t  sensors_valid,
+                    uint8_t  fan_on)
 {
-    if (num < 0) {
-        bt_send_char('-');
-        num = -num;
-    }
-    bt_send_number((uint16_t)num);
+    uart_puts("CO:");
+    uart_putu(co_ppm);
+
+    uart_puts(",GAS:");
+    uart_putu(gas_ppm);
+
+    uart_puts(",T:");
+    if (sensors_valid) send_one_decimal_i(temp_dc);
+    else               uart_puts("ERR");
+
+    uart_puts(",H:");
+    if (sensors_valid) send_one_decimal_u(hum_dp);
+    else               uart_puts("ERR");
+
+    uart_puts(",F:");
+    uart_putc(fan_on ? '1' : '0');
+
+    uart_puts("\r\n");
 }

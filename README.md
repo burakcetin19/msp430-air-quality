@@ -23,13 +23,24 @@ calistiran ve HC-05 Bluetooth modulu uzerinden verileri yayinlayan proje.
 ## Dosya Yapisi
 
 ```
-main.c          Ana dongu: olcum, esik, role, BT
-bluetooth.[ch]  HC-05 UART (9600 baud, P1.1/P1.2)
+main.c          Ana dongu: olcum, esik, role, BT cagrisi
+uart.[ch]       USCI_A0 UART surucusu (9600 8N1 @ 1 MHz)
+                !!! Init sirasi (pin -> clock -> UART) DONDURULMUS,
+                    bu dosyaya dokunma. !!!
+bluetooth.[ch]  HC-05 paket katmani: bt_init / hello / send_packet
 dht22.[ch]      DHT22 tek-tel surucusu (1 MHz MCLK)
 mq_sensors.[ch] ADC10 ile MQ-7 / MQ-135 okumalari
 relay.[ch]      Role kontrolu (P2.1)
 config.h        Esik degerleri ve periyotlar
 ```
+
+### UART / BT katmanlari neden ayri?
+
+`uart.c` icindeki init sirasi titiz biçimde test edildi
+(pin fonksiyonu -> DCO kalibrasyonu -> `UCSWRST` altinda `|=` ile
+yapilandirma). Bu sira bozulursa BT'ye copluk (orn. `@^@^...`) gider.
+Paket bicimi degisecekse `bluetooth.c` icinde oynayin, `uart.c`
+govdesi degismesin.
 
 ## Esik Degerleri
 
