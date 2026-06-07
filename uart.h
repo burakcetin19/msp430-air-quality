@@ -11,6 +11,10 @@
 
 void uart_init_9600_1mhz(void);
 
+/* 1 = Segment A kalibrasyonu mevcut (DCO hassas)
+ * 0 = silinmis, fallback DCO kullanildi (baud sinirda)            */
+uint8_t uart_calibration_ok(void);
+
 void uart_putc(char c);
 void uart_puts(const char *s);
 void uart_putu(uint16_t n);   /* isaretsiz decimal */

@@ -30,4 +30,12 @@
 #define READING_PERIOD_MS        2000U
 #define WARMUP_PERIOD_MS         3000U
 
+/* --- TX toggle test modu ---
+ *
+ *  1 (default) : RST basisi flash'taki bayragi cevirir, TX on/off.
+ *  0           : Flash operasyonu hic yapilmaz, TX hep ACIK.
+ *                BT garbage tanisinda flash op'u izole etmek icin.
+ */
+#define ENABLE_TX_TOGGLE         1
+
 #endif /* CONFIG_H */

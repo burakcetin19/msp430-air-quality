@@ -8,7 +8,9 @@ void bt_init(void)
 
 void bt_send_hello(void)
 {
-    uart_puts("\r\n[MSP430] Hava Kalitesi Olcum baslatildi\r\n");
+    uart_puts("\r\n[MSP430] Hava Kalitesi Olcum baslatildi ");
+    if (uart_calibration_ok()) uart_puts("[CAL=OK]\r\n");
+    else                       uart_puts("[CAL=LOST,fallback]\r\n");
 }
 
 void bt_send_tx_status(uint8_t on)

@@ -57,10 +57,18 @@ int main(void)
     mq_init();
     relay_init();
 
-    /* Bu boot bir TOGGLE'dir.
+    /* Bu boot bir TOGGLE'dir (config.h ENABLE_TX_TOGGLE = 1 iken).
      * Cip ilk programlandiktan sonraki ilk acilis: TX = ON.
-     * Sonraki her RST basisi: 0->1 / 1->0.                          */
+     * Sonraki her RST basisi: 0->1 / 1->0.
+     *
+     * Test/tanı modu: ENABLE_TX_TOGGLE = 0 yapilirsa flash operasyonu
+     * hic yapilmaz, TX hep acik kalir. BT garbage incelerken flash
+     * op'unu sorundan izole etmek icin kullan.                       */
+#if ENABLE_TX_TOGGLE
     tx_enable = flash_toggle_tx_flag();
+#else
+    tx_enable = 1;
+#endif
 
     if (tx_enable) {
         bt_send_hello();
